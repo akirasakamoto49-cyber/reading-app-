@@ -1,0 +1,2181 @@
+<!doctype html>
+<html lang="ja">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>読書貯金アプリ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
+        body { 
+            font-family: 'Noto Sans JP', sans-serif;
+            box-sizing: border-box;
+        }
+        .book-card {
+            transition: all 0.3s ease;
+        }
+        .book-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .savings-counter {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .delete-btn {
+            transition: all 0.2s ease;
+        }
+        .delete-btn:hover {
+            transform: scale(1.1);
+        }
+        .milestone-badge {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .zeus-lightning {
+            animation: lightning 2s infinite;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+        }
+        @keyframes lightning {
+            0%, 90%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+            }
+            5%, 15%, 25% { 
+                transform: scale(1.1) rotate(2deg);
+                filter: drop-shadow(0 0 20px rgba(255, 215, 0, 1)) drop-shadow(0 0 30px rgba(255, 255, 255, 0.5));
+            }
+            10%, 20% { 
+                transform: scale(1.05) rotate(-1deg);
+                filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.9));
+            }
+        }
+        .welcome-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        ruby{ ruby-position: over; }
+        rt{ font-size:10px; color:#4b5563; }
+    </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="/_sdk/element_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.17" type="text/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" type="text/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js" type="text/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js" type="text/javascript"></script>
+ </head>
+ <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen"><!-- 名前の確認モーダル -->
+  <div id="confirmNameModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+   <div class="bg-white rounded-2xl p-6 max-w-md mx-4">
+    <h4 class="text-lg font-semibold text-gray-800 mb-3">名前の確認</h4>
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+     <p class="text-sm text-blue-800 mb-2">この名前で登録しますか？</p>
+     <p class="text-xl font-bold text-blue-900" id="confirmNameDisplay"></p>
+    </div>
+    <div id="confirmNameErrorMessage" class="hidden text-red-600 text-sm mb-4"></div>
+    <div class="flex gap-3 justify-end"><button onclick="closeConfirmNameModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"> キャンセル </button> <button onclick="finalizeUsername()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"> 確定する </button>
+    </div>
+   </div>
+  </div><!-- クラウド復元確認モーダル -->
+  <div id="restoreModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+   <div class="bg-white rounded-2xl p-6 max-w-md mx-4">
+    <h4 class="text-lg font-semibold text-gray-800 mb-3">クラウドからデータ復元</h4>
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+     <p class="text-sm text-yellow-800">現在のデータは上書きされます</p>
+    </div>
+    <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-2">復元したい名前を入力</label> <input type="text" id="restoreNameInput" placeholder="名前を入力してください" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" maxlength="20">
+    </div>
+    <div id="restoreErrorMessage" class="hidden text-red-600 text-sm mb-4"></div>
+    <div class="flex gap-3 justify-end"><button onclick="closeRestoreModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"> キャンセル </button> <button onclick="confirmRestoreByName()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"> 復元する </button>
+    </div>
+   </div>
+  </div>
+  <div class="container mx-auto px-4 py-8 max-w-4xl"><!-- ヘッダー -->
+   <div class="text-center mb-8">
+    <h1 class="text-4xl font-bold text-gray-800 mb-2">読書貯金アプリ</h1><!-- 名前入力セクション（名前未設定時） -->
+    <div id="nameInputSection" class="hidden mb-4">
+     <div class="flex items-center justify-center gap-3 mb-2"><input type="text" id="usernameInput" placeholder="あなたの名前を入力してください" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" maxlength="20"> <button onclick="setUsername()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"> 確定 </button>
+     </div>
+    </div><!-- 名前表示セクション（名前設定済み時） -->
+    <div id="nameDisplaySection" class="hidden">
+     <div class="flex items-center justify-center gap-3 mb-2"><span class="text-3xl font-bold text-blue-600" id="displayUsername">ゲスト</span> <span class="text-xl text-gray-600">さんの読書記録</span> <button onclick="changeUsername()" class="ml-2 text-sm text-gray-500 hover:text-blue-600 transition-colors" title="名前を変更"> ✏️ </button>
+     </div>
+    </div>
+    <p class="text-gray-600 mb-4">本を読んでお金も貯めよう！</p><!-- クラウド操作ボタン -->
+    <div class="flex gap-3 justify-center"><button onclick="showRestoreModal()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"> クラウドから復元 </button>
+    </div>
+   </div><!-- 貯金額表示 -->
+   <div class="savings-counter text-white rounded-2xl p-6 mb-8 text-center shadow-lg">
+    <h2 class="text-2xl font-semibold mb-2">現在の貯金額</h2>
+    <div class="text-5xl font-bold" id="totalSavings">
+     ¥0
+    </div>
+    <p class="text-blue-100 mt-2 text-xl font-semibold">読んだ本: <span id="bookCount" class="text-2xl font-bold">0</span>冊</p>
+    <div id="milestoneInfo" class="mt-3 text-sm text-blue-100"><!-- マイルストーン情報がここに表示されます -->
+    </div>
+   </div><!-- ISBN入力フォーム -->
+   <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+    <h3 class="text-xl font-semibold text-gray-800 mb-4">新しい本を追加</h3>
+    <div class="flex gap-3"><input type="text" id="isbnInput" placeholder="ISBNコードを入力してください（例: 9784797395167）" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"> <button onclick="toggleBarcodeScanner()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center gap-2" title="バーコード読み取り"> 📷 </button> <button onclick="addBook()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"> 追加 </button>
+    </div>
+    <div id="loadingMessage" class="hidden mt-3 text-blue-600">
+     本の情報と価格を取得中...
+    </div>
+    <div id="errorMessage" class="hidden mt-3 text-red-600"></div>
+   </div><!-- バーコードスキャナーモーダル -->
+   <div id="barcodeScannerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl p-6 max-w-md mx-4 w-full">
+     <h4 class="text-lg font-semibold text-gray-800 mb-3">バーコードスキャナー</h4>
+     <div class="bg-gray-100 rounded-lg overflow-hidden mb-4" style="aspect-ratio: 4/3;">
+    <video id="barcodeVideo"class="w-full h-full object-cover"autoplay muted playsinline></video>
+     </div>
+     <div id="barcodeStatus" class="text-center text-sm text-gray-600 mb-4">
+      カメラを本のバーコードに向けてください
+     </div>
+     <div class="flex gap-3 justify-end"><button onclick="closeBarcodeScanner()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"> キャンセル </button>
+     </div>
+    </div>
+   </div><!-- 読書記録一覧 -->
+   <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+    <h3 class="text-xl font-semibold text-gray-800 mb-4">読書記録</h3>
+    <div id="booksList" class="space-y-4 max-h-96 overflow-y-auto pr-2">
+     <div class="text-center text-gray-500 py-8">
+      まだ本が登録されていません。<br>
+       ISBNコードを入力して最初の本を追加してみましょう！
+     </div>
+    </div>
+   </div><!-- アイテムショップ -->
+   <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+    <h3 class="text-xl font-semibold text-gray-800 mb-4">アイテムショップ</h3>
+    <p class="text-sm text-gray-600 mb-4">読書で貯めたお金でアイテムを購入しよう！</p>
+    <div class="max-h-96 overflow-y-auto pr-2">
+     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="shopItems"><!-- ショップアイテムがここに表示されます -->
+     </div>
+    </div>
+   </div><!-- 購入したアイテムのショーケース -->
+   <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+    <h3 class="text-xl font-semibold text-gray-800 mb-4">マイコレクション</h3>
+    <div id="myCollection" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 max-h-48 overflow-y-auto">
+     <div class="text-center text-gray-500 py-8 col-span-full">
+      まだアイテムを購入していません
+     </div>
+    </div>
+   </div><!-- 購入履歴 -->
+   <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+    <h3 class="text-xl font-semibold text-gray-800 mb-4">購入履歴</h3>
+    <div id="purchaseHistory" class="space-y-2 max-h-48 overflow-y-auto">
+     <div class="text-center text-gray-500 py-4">
+      まだ何も購入していません
+     </div>
+    </div>
+   </div>
+  </div><!-- 削除確認モーダル -->
+  <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+   <div class="bg-white rounded-2xl p-6 max-w-md mx-4">
+    <h4 class="text-lg font-semibold text-gray-800 mb-3">削除の確認</h4>
+    <p class="text-gray-600 mb-6" id="deleteModalMessage">この本を削除しますか？貯金額も減額されます。</p>
+    <div class="flex gap-3 justify-end"><button onclick="closeDeleteModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"> キャンセル </button> <button onclick="confirmDelete()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"> 削除する </button>
+    </div>
+   </div>
+  </div><!-- 購入確認モーダル -->
+  <div id="purchaseModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+   <div class="bg-white rounded-2xl p-6 max-w-md mx-4">
+    <h4 class="text-lg font-semibold text-gray-800 mb-3">購入の確認</h4><!-- 現在の貯金額表示 -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+     <div class="flex items-center justify-between"><span class="text-sm font-medium text-blue-700">現在の貯金額</span> <span class="text-xl font-bold text-blue-800" id="modalCurrentSavings">¥0</span>
+     </div>
+     <div class="text-xs text-blue-600 mt-1" id="modalAfterPurchase">
+      購入後: ¥0
+     </div>
+    </div>
+    <div id="purchaseItemInfo" class="mb-4"><!-- 購入アイテム情報がここに表示されます -->
+    </div>
+    <p class="text-gray-600 mb-6">この商品を購入しますか？</p>
+    <div class="flex gap-3 justify-end"><button onclick="closePurchaseModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"> キャンセル </button> <button onclick="confirmPurchase()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"> 購入する </button>
+    </div>
+   </div>
+  </div><!-- 名前変更モーダル -->
+  <div id="changeNameModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+   <div class="bg-white rounded-2xl p-6 max-w-md mx-4">
+    <h4 class="text-lg font-semibold text-gray-800 mb-3">名前を変更</h4>
+    <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-2">新しい名前</label> <input type="text" id="newUsernameInput" placeholder="新しい名前を入力" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" maxlength="20">
+    </div>
+    <div class="flex gap-3 justify-end"><button onclick="closeChangeNameModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"> キャンセル </button> <button onclick="confirmNameChange()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"> 変更する </button>
+    </div>
+   </div>
+  </div>
+  <script>
+        // GAS Web API URL
+        const GAS_WEB_API_URL = 'https://script.google.com/macros/s/AKfycbxvK5Xwon8dOws_aBgReP5_UImGDUY2mWErI6Vd5bzvMWrQN03YLrpv9aCEgtABv_sElA/exec';
+        
+        let books = [];
+        let purchases = [];
+        let deleteBookId = null;
+        let purchaseItem = null;
+        let username = '';
+        let userId = localStorage.getItem('userId') || generateUserId();
+        let barcodeScanning = false;
+        let codeReader = null;
+        
+        // ユーザーIDを生成
+        function generateUserId() {
+            const id = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('userId', id);
+            return id;
+        }
+        
+       
+// 状態管理
+let barcodeScanning = false;
+let cameraStarting = false;
+let codeReader = null;
+
+// バーコードスキャナーの表示切り替え
+function toggleBarcodeScanner() {
+  if (barcodeScanning) {
+    closeBarcodeScanner();
+  } else {
+    openBarcodeScanner();
+  }
+}
+
+// バーコードスキャナーを開く
+async function openBarcodeScanner() {
+  // 二重起動防止
+  if (cameraStarting) return;
+  cameraStarting = true;
+
+  const modal = document.getElementById('barcodeScannerModal');
+  const video = document.getElementById('barcodeVideo');
+  const statusEl = document.getElementById('barcodeStatus');
+
+  modal.classList.remove('hidden');
+  statusEl.textContent = 'カメラを起動中…';
+
+  try {
+    // カメラ取得
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    });
+
+    video.srcObject = stream;
+
+    // ZXing 初期化
+    if (!codeReader) {
+      codeReader = new ZXing.BrowserMultiFormatReader();
+    }
+
+    barcodeScanning = true;
+    statusEl.textContent = 'バーコードを読み取り中…';
+
+    // ZXing の正規・安定した連続読取方法
+    codeReader.decodeFromVideoDevice(
+      null,
+      video,
+      (result, error) => {
+        if (!barcodeScanning) return;
+
+        if (result) {
+          const isbn = result.getText().replace(/[-\s]/g, '');
+
+          // ISBNチェック
+          if (/^\d{10}(\d{3})?$/.test(isbn)) {
+            document.getElementById('isbnInput').value = isbn;
+            closeBarcodeScanner();
+
+            // 少し待ってから追加（UX安定）
+            setTimeout(() => addBook(), 400);
+          }
+        }
+      }
+    );
+
+  } catch (error) {
+    console.error('カメラ起動エラー:', error);
+    statusEl.textContent = 'カメラを起動できませんでした';
+    barcodeScanning = false;
+    cameraStarting = false;
+  }
+}
+
+// バーコードスキャナーを閉じる
+function closeBarcodeScanner() {
+  const modal = document.getElementById('barcodeScannerModal');
+  const video = document.getElementById('barcodeVideo');
+
+  barcodeScanning = false;
+  cameraStarting = false;
+
+  // ZXing 停止
+  if (codeReader) {
+    try {
+      codeReader.reset();
+    } catch (e) {}
+  }
+
+  // カメラ停止
+  if (video && video.srcObject) {
+    video.srcObject.getTracks().forEach(track => track.stop());
+    video.srcObject = null;
+  }
+
+  modal.classList.add('hidden');
+}
+        
+        // 名前を正規化（全角→半角、前後空白削除、連続空白を1つに）
+        function normalizeNameClient(name) {
+            if (!name) return '';
+            // 全角英数字・記号を半角に変換
+            let normalized = name.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            });
+            // 全角スペースを半角に
+            normalized = normalized.replace(/　/g, ' ');
+            // 前後の空白を削除
+            normalized = normalized.trim();
+            // 連続する空白を1つに
+            normalized = normalized.replace(/\s+/g, ' ');
+            return normalized;
+        }
+        
+        // GASに保存
+        async function saveToGAS() {
+            if (!username) {
+                return { ok: false, error: 'ユーザー名未設定' };
+            }
+            
+            try {
+                const spentMoney = parseFloat(localStorage.getItem('spentMoney') || '0');
+                
+                const dataJson = JSON.stringify({
+                    books: books,
+                    purchases: purchases,
+                    spent_money: spentMoney
+                });
+                
+                const payload = {
+                    action: 'save',
+                    userId: userId,
+                    name: username,
+                    dataJson: dataJson,
+                    updatedAt: new Date().toISOString(),
+                    clientUpdatedAt: new Date().toISOString()
+                };
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                const response = await fetch(GAS_WEB_API_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'text/plain; charset=UTF-8'
+                    },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('GAS保存成功:', result);
+                    
+                    if (result.ok) {
+                        return { ok: true };
+                    } else if (result.error) {
+                        return { ok: false, error: result.error };
+                    }
+                } else {
+                    console.error('GAS保存失敗 status:', response.status);
+                    return { ok: false, error: `HTTP ${response.status}` };
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.error('GASタイムアウト(10秒)');
+                    return { ok: false, error: 'タイムアウト' };
+                } else {
+                    console.error('GAS保存エラー:', error);
+                    return { ok: false, error: '保存エラー' };
+                }
+            }
+            
+            return { ok: false, error: '不明なエラー' };
+        }
+        
+        // 保存を実行
+        function enqueueSave() {
+            if (!username) {
+                return;
+            }
+            saveToGAS();
+        }
+        
+        // 復元モーダルを表示
+        function showRestoreModal() {
+            document.getElementById('restoreModal').classList.remove('hidden');
+            document.getElementById('restoreNameInput').value = '';
+            document.getElementById('restoreErrorMessage').classList.add('hidden');
+        }
+        
+        // 復元モーダルを閉じる
+        function closeRestoreModal() {
+            document.getElementById('restoreModal').classList.add('hidden');
+        }
+        
+        // 書影復元用のデータ補完関数（すべての本に対して実行）
+        async function rehydrateBooksForCovers(books) {
+            if (!Array.isArray(books) || books.length === 0) return;
+            
+            console.log(`📚 書影復元開始: ${books.length}冊の本を処理`);
+            
+            for (let i = 0; i < books.length; i++) {
+                const book = books[i];
+                
+                // 1) idが無い場合は採番
+                if (!book.id) {
+                    book.id = Date.now() + i;
+                }
+                
+                // 2) 既存URLをHTTPS化
+                if (book.thumbnail && book.thumbnail.startsWith('http:')) {
+                    book.thumbnail = book.thumbnail.replace('http:', 'https:');
+                }
+                
+                if (Array.isArray(book.thumbnailUrls)) {
+                    book.thumbnailUrls = book.thumbnailUrls.map(url => 
+                        url && url.startsWith('http:') ? url.replace('http:', 'https:') : url
+                    );
+                } else {
+                    book.thumbnailUrls = [];
+                }
+                
+                console.log(`🔍 [${i + 1}/${books.length}] ${book.title} (ISBN: ${book.isbn})`);
+                
+                // 3) Google VolumeID がある場合、静的 URL を最優先で追加
+                if (book.googleVolumeId) {
+                    const staticGoogleUrl = `https://books.google.com/books/content?id=${book.googleVolumeId}&printsec=frontcover&img=1&zoom=1`;
+                    if (!book.thumbnailUrls.includes(staticGoogleUrl)) {
+                        book.thumbnailUrls.unshift(staticGoogleUrl);
+                        console.log(`  ✅ Google Books 静的URL追加: ${staticGoogleUrl}`);
+                    }
+                }
+                
+                // 4) openBD CDNを追加（Google が成功時の fallback）
+                if (book.isbn && /^\d{13}$/.test(book.isbn)) {
+                    const openBDUrl = `https://cover.openbd.jp/${book.isbn}.jpg`;
+                    if (!book.thumbnailUrls.includes(openBDUrl)) {
+                        book.thumbnailUrls.push(openBDUrl);
+                        console.log(`  ✓ openBD CDN: ${openBDUrl}`);
+                    }
+                }
+                
+                // 5) NDL API URLを追加
+                if (book.isbn && /^\d{13}$/.test(book.isbn)) {
+                    const ndlUrl = `https://ndlsearch.ndl.go.jp/api/v1/cover?isbn=${book.isbn}`;
+                    if (!book.thumbnailUrls.includes(ndlUrl)) {
+                        book.thumbnailUrls.push(ndlUrl);
+                        console.log(`  ✓ NDL API: ${ndlUrl}`);
+                    }
+                }
+                
+                console.log(`  📷 URL候補数: ${book.thumbnailUrls.length}`);
+                
+                // 初期表示URLを設定
+                if (!book.thumbnail || book.thumbnail.includes('undefined')) {
+                    book.thumbnail = book.thumbnailUrls.length > 0 ? book.thumbnailUrls[0] : null;
+                }
+            }
+            
+            console.log('✅ 書影復元完了');
+        }
+        
+        
+        // 購入履歴をマージする関数
+        function mergePurchases(cloudPurchases, localPurchases) {
+            const merged = [...cloudPurchases];
+            const cloudIds = new Set(cloudPurchases.map(p => p.purchaseId));
+            
+            // ローカルにしかない購入を追加
+            localPurchases.forEach(localPurchase => {
+                if (!cloudIds.has(localPurchase.purchaseId)) {
+                    merged.push(localPurchase);
+                }
+            });
+            
+            // 日付順にソート
+            merged.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            return merged;
+        }
+        
+        // 名前を指定してGASから復元
+        async function confirmRestoreByName() {
+            const restoreName = normalizeNameClient(document.getElementById('restoreNameInput').value.trim());
+            const errorEl = document.getElementById('restoreErrorMessage');
+            
+            if (!restoreName) {
+                errorEl.textContent = '名前を入力してください';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${GAS_WEB_API_URL}?name=${encodeURIComponent(restoreName)}`, {
+                    method: 'GET'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('データ取得失敗');
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.row && data.row.dataJson) {
+                    const parsedData = JSON.parse(data.row.dataJson);
+                    const cloudBooks = parsedData.books || [];
+                    const cloudPurchases = parsedData.purchases || [];
+                    const cloudSpentMoney = parsedData.spent_money || 0;
+                    
+                    // ローカルの購入履歴を取得
+                    const localPurchases = purchases || [];
+                    const localSpentMoney = parseFloat(localStorage.getItem('spentMoney') || '0');
+                    
+                    // 購入履歴をマージ
+                    const mergedPurchases = mergePurchases(cloudPurchases, localPurchases);
+                    
+                    // spentMoneyをマージ（重複を避けるためマージ後の購入履歴から計算）
+                    const mergedSpentMoney = mergedPurchases.reduce((sum, p) => sum + (p.price || 0), 0);
+                    
+                    // データを適用
+                    books = cloudBooks;
+                    purchases = mergedPurchases;
+                    
+                    localStorage.setItem('spentMoney', mergedSpentMoney.toString());
+                    localStorage.setItem('purchases', JSON.stringify(purchases));
+                    
+                    username = data.row.name || restoreName;
+                    localStorage.setItem('username', username);
+                    document.getElementById('displayUsername').textContent = username;
+                    
+                    document.getElementById('nameInputSection').classList.add('hidden');
+                    document.getElementById('nameDisplaySection').classList.remove('hidden');
+                    
+                    // 書影データを補完（すべての本に対して実行）
+                    showSuccess('書影情報を取得中...');
+                    await rehydrateBooksForCovers(books);
+                    
+                    // 補完後のデータをローカルに保存
+                    saveBooks();
+                    
+                    // クラウドにも即座に保存（マージ後のデータを反映）
+                    await saveToGAS();
+                    
+                    updateDisplay();
+                    closeRestoreModal();
+                    showSuccess(`${username}さんのデータを復元し、クラウドに保存しました！`);
+                } else {
+                    errorEl.textContent = `${restoreName}のデータが見つかりません`;
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('復元エラー:', error);
+                errorEl.textContent = 'データ復元に失敗しました';
+                errorEl.classList.remove('hidden');
+            }
+        }
+        
+        // 名前を設定
+        async function setUsername() {
+            const inputUsername = document.getElementById('usernameInput').value.trim();
+            
+            if (!inputUsername) {
+                showError('名前を入力してください');
+                return;
+            }
+            
+            document.getElementById('confirmNameDisplay').textContent = inputUsername;
+            document.getElementById('confirmNameModal').classList.remove('hidden');
+            document.getElementById('confirmNameErrorMessage').classList.add('hidden');
+        }
+        
+        // 名前確定モーダルを閉じる
+        function closeConfirmNameModal() {
+            document.getElementById('confirmNameModal').classList.add('hidden');
+        }
+        
+        // 名前を確定
+        async function finalizeUsername() {
+            const inputUsername = document.getElementById('usernameInput').value.trim();
+            
+            if (!inputUsername) {
+                document.getElementById('confirmNameErrorMessage').textContent = '名前を入力してください';
+                document.getElementById('confirmNameErrorMessage').classList.remove('hidden');
+                return;
+            }
+            
+            username = normalizeNameClient(inputUsername);
+            localStorage.setItem('username', username);
+            document.getElementById('displayUsername').textContent = username;
+            document.getElementById('nameInputSection').classList.add('hidden');
+            document.getElementById('nameDisplaySection').classList.remove('hidden');
+            
+            closeConfirmNameModal();
+            showSuccess(`${username}さん、読書貯金アプリへようこそ！`);
+            
+            enqueueSave();
+        }
+        
+        // 書籍情報キャッシュシステム（複数エンドポイント対応）
+        const bookInfoCache = new Map();
+        
+        async function getCachedBookInfo(isbn) {
+            const cacheKey = `book_${isbn}`;
+            
+            // メモリキャッシュ確認
+            if (bookInfoCache.has(cacheKey)) {
+                console.log(`メモリキャッシュヒット: ${isbn}`);
+                return bookInfoCache.get(cacheKey);
+            }
+            
+            // IndexedDB確認（大容量対応・優先度1）
+            try {
+                const cachedData = await getFromIndexedDB(isbn);
+                if (cachedData) {
+                    console.log(`IndexedDBキャッシュヒット: ${isbn}`);
+                    bookInfoCache.set(cacheKey, cachedData);
+                    return cachedData;
+                }
+            } catch (e) {
+                console.warn('IndexedDB read failed:', e);
+            }
+            
+            // localStorage確認（フォールバック・優先度2）
+            try {
+                const cachedData = localStorage.getItem(cacheKey);
+                if (cachedData) {
+                    const parsed = JSON.parse(cachedData);
+                    // キャッシュ有効期限を30日から90日に延長
+                    if (Date.now() - parsed.timestamp < 90 * 24 * 60 * 60 * 1000) {
+                        console.log(`localStorageキャッシュヒット: ${isbn}`);
+                        bookInfoCache.set(cacheKey, parsed.data);
+                        return parsed.data;
+                    } else {
+                        localStorage.removeItem(cacheKey);
+                    }
+                }
+            } catch (e) {
+                localStorage.removeItem(cacheKey);
+            }
+            
+            return null;
+        }
+        
+        function cacheBookInfo(isbn, bookInfo) {
+            const cacheKey = `book_${isbn}`;
+            
+            bookInfoCache.set(cacheKey, bookInfo);
+            
+            // IndexedDBに保存（優先）
+            saveToIndexedDB(isbn, bookInfo).catch(err => {
+                console.warn('IndexedDB save failed, fallback to localStorage:', err);
+                
+                // IndexedDB失敗時はlocalStorageにフォールバック
+                try {
+                    const cacheData = {
+                        data: bookInfo,
+                        timestamp: Date.now()
+                    };
+                    const serialized = JSON.stringify(cacheData);
+                    // localStorageサイズチェック（約5MB制限対策）
+                    if (serialized.length < 100000) { // 100KB以下のみ保存
+                        localStorage.setItem(cacheKey, serialized);
+                        console.log(`localStorageに書籍情報を保存: ${isbn}`);
+                    } else {
+                        console.warn(`書籍情報がlocalStorage制限超過: ${isbn}`);
+                    }
+                } catch (e) {
+                    console.warn('LocalStorage full, skipping book info cache');
+                }
+            });
+        }
+        
+        // IndexedDB初期化
+        let db = null;
+        async function initIndexedDB() {
+            return new Promise((resolve, reject) => {
+                try {
+                    const request = indexedDB.open('BookCoverDB', 2); // バージョンアップ
+                    
+                    request.onerror = () => {
+                        console.error('IndexedDB open error:', request.error);
+                        reject(request.error);
+                    };
+                    request.onsuccess = () => {
+                        db = request.result;
+                        console.log('IndexedDB initialized successfully');
+                        resolve(db);
+                    };
+                    
+                    request.onupgradeneeded = (event) => {
+                        const newDb = event.target.result;
+                        console.log('IndexedDB upgrade needed');
+                        
+                        // 既存のストアをクリア
+                        if (newDb.objectStoreNames.contains('bookInfo')) {
+                            newDb.deleteObjectStore('bookInfo');
+                        }
+                        
+                        // 新しいストアを作成（キー: isbn）
+                        const store = newDb.createObjectStore('bookInfo', { keyPath: 'isbn' });
+                        store.createIndex('timestamp', 'timestamp', { unique: false });
+                        console.log('BookInfo object store created');
+                    };
+                } catch (e) {
+                    console.error('IndexedDB initialization failed:', e);
+                    reject(e);
+                }
+            });
+        }
+        
+        async function saveToIndexedDB(isbn, bookInfo) {
+            if (!db) {
+                try {
+                    await initIndexedDB();
+                } catch (e) {
+                    throw new Error('IndexedDB not available');
+                }
+            }
+            
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction(['bookInfo'], 'readwrite');
+                    const store = transaction.objectStore('bookInfo');
+                    
+                    const dataToSave = {
+                        isbn: isbn,
+                        data: bookInfo,
+                        timestamp: Date.now()
+                    };
+                    
+                    const request = store.put(dataToSave);
+                    
+                    request.onerror = () => {
+                        console.error('IndexedDB put error:', request.error);
+                        reject(request.error);
+                    };
+                    request.onsuccess = () => {
+                        console.log(`IndexedDBに保存成功: ${isbn}`);
+                        resolve();
+                    };
+                    
+                    transaction.onerror = () => {
+                        console.error('IndexedDB transaction error:', transaction.error);
+                        reject(transaction.error);
+                    };
+                } catch (e) {
+                    console.error('IndexedDB save error:', e);
+                    reject(e);
+                }
+            });
+        }
+        
+        async function getFromIndexedDB(isbn) {
+            if (!db) {
+                try {
+                    await initIndexedDB();
+                } catch (e) {
+                    console.warn('IndexedDB init failed in get:', e);
+                    return null;
+                }
+            }
+            
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction(['bookInfo'], 'readonly');
+                    const store = transaction.objectStore('bookInfo');
+                    const request = store.get(isbn);
+                    
+                    request.onerror = () => {
+                        console.error('IndexedDB get error:', request.error);
+                        reject(request.error);
+                    };
+                    request.onsuccess = () => {
+                        const result = request.result;
+                        if (result) {
+                            // キャッシュ有効期限チェック（90日）
+                            if (Date.now() - result.timestamp < 90 * 24 * 60 * 60 * 1000) {
+                                console.log(`IndexedDBから読み込み成功: ${isbn}`);
+                                resolve(result.data);
+                            } else {
+                                console.log(`IndexedDBキャッシュ期限切れ: ${isbn}`);
+                                // 期限切れなら削除
+                                const deleteRequest = store.delete(isbn);
+                                deleteRequest.onsuccess = () => resolve(null);
+                                deleteRequest.onerror = () => resolve(null);
+                            }
+                        } else {
+                            resolve(null);
+                        }
+                    };
+                    
+                    transaction.onerror = () => {
+                        console.error('IndexedDB transaction error:', transaction.error);
+                        reject(transaction.error);
+                    };
+                } catch (e) {
+                    console.error('IndexedDB get error:', e);
+                    resolve(null); // エラーは静かに処理
+                }
+            });
+        }
+
+        // Google Books APIから書籍情報を取得
+        async function fetchGoogleBooksInfo(isbn) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+                
+                const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=JP&maxResults=1`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) return null;
+                
+                const data = await response.json();
+                
+                if (data.items && data.items.length > 0) {
+                    const book = data.items[0];
+                    const volumeInfo = book.volumeInfo || {};
+                    const saleInfo = book.saleInfo || {};
+                    const volumeId = book.id || null;
+                    
+                    let price = null;
+                    if (saleInfo.retailPrice && saleInfo.retailPrice.amount) {
+                        price = Math.floor(saleInfo.retailPrice.amount);
+                    } else if (saleInfo.listPrice && saleInfo.listPrice.amount) {
+                        price = Math.floor(saleInfo.listPrice.amount);
+                    }
+                    
+                    const thumbnailUrls = [];
+                    
+                    // 1. Google Books CDN 静的URL を最優先で追加
+                    if (volumeId) {
+                        const staticGoogleUrl = `https://books.google.com/books/content?id=${volumeId}&printsec=frontcover&img=1&zoom=1`;
+                        thumbnailUrls.push(staticGoogleUrl);
+                        console.log(`✅ Google Books 静的URL: ${staticGoogleUrl}`);
+                    }
+                    
+                    // 2. 既存の API 取得URL を追加
+                    if (volumeInfo.imageLinks) {
+                        const sizes = ['extraLarge', 'large', 'medium', 'small', 'thumbnail', 'smallThumbnail'];
+                        sizes.forEach(size => {
+                            if (volumeInfo.imageLinks[size]) {
+                                let url = volumeInfo.imageLinks[size];
+                                if (url.startsWith('http:')) {
+                                    url = url.replace('http:', 'https:');
+                                }
+                                thumbnailUrls.push(url);
+                            }
+                        });
+                    }
+                    
+                    const thumbnail = thumbnailUrls.length > 0 ? thumbnailUrls[0] : null;
+                    
+                    return {
+                        price: price,
+                        title: volumeInfo.title || '',
+                        authors: volumeInfo.authors ? volumeInfo.authors.join(', ') : '',
+                        publisher: volumeInfo.publisher || '',
+                        publishedDate: volumeInfo.publishedDate || '',
+                        pageCount: volumeInfo.pageCount || null,
+                        thumbnail: thumbnail,
+                        thumbnailUrls: thumbnailUrls,
+                        description: volumeInfo.description || '',
+                        categories: volumeInfo.categories || [],
+                        language: volumeInfo.language || '',
+                        isbn: isbn,
+                        googleVolumeId: volumeId,
+                        source: 'Google Books'
+                    };
+                }
+                
+                return null;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Google Books API timeout');
+                } else {
+                    console.warn('Google Books API failed:', error);
+                }
+                return null;
+            }
+        }
+
+        // 楽天ブックスAPIから書籍情報を取得
+        async function fetchRakutenBooksInfo(isbn) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const response = await fetch(`https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?format=json&isbn=${isbn}&applicationId=RAKUTEN_APP_ID`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) return null;
+                
+                const data = await response.json();
+                
+                if (data.Items && data.Items.length > 0) {
+                    const item = data.Items[0].Item;
+                    
+                    const thumbnailUrls = [];
+                    if (item.largeImageUrl) thumbnailUrls.push(item.largeImageUrl);
+                    if (item.mediumImageUrl) thumbnailUrls.push(item.mediumImageUrl);
+                    if (item.smallImageUrl) thumbnailUrls.push(item.smallImageUrl);
+                    
+                    const thumbnail = thumbnailUrls.length > 0 ? thumbnailUrls[0] : null;
+                    
+                    return {
+                        price: item.itemPrice || null,
+                        title: item.title || '',
+                        authors: item.author || '',
+                        publisher: item.publisherName || '',
+                        publishedDate: item.salesDate || '',
+                        pageCount: item.size ? parseInt(item.size.replace(/[^\d]/g, '')) : null,
+                        thumbnail: thumbnail,
+                        thumbnailUrls: thumbnailUrls,
+                        description: item.itemCaption || '',
+                        isbn: item.isbn || isbn,
+                        source: 'Rakuten Books'
+                    };
+                }
+                
+                return null;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Rakuten Books API timeout');
+                } else {
+                    console.warn('Rakuten Books API failed:', error);
+                }
+                return null;
+            }
+        }
+        
+        // openBD APIから書籍情報を取得
+        async function fetchOpenBDBookInfo(isbn) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const response = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) return null;
+                
+                const data = await response.json();
+                console.log(`📊 openBD raw response for ${isbn}:`, JSON.stringify(data).substring(0, 500));
+                
+                if (data && data[0] && data[0].summary) {
+                    const summary = data[0].summary;
+                    const onix = data[0].onix || {};
+                    const descriptiveDetail = onix.DescriptiveDetail || {};
+                    const publishingDetail = onix.PublishingDetail || {};
+                    const productSupply = onix.ProductSupply || {};
+                    
+                    console.log(`📖 openBD summary for ${isbn}:`, JSON.stringify(summary).substring(0, 300));
+                    console.log(`🖼️ openBD cover field: ${summary.cover}`);
+                    
+                    let price = null;
+                    if (productSupply.SupplyDetail && productSupply.SupplyDetail.Price) {
+                        const priceInfo = Array.isArray(productSupply.SupplyDetail.Price) 
+                            ? productSupply.SupplyDetail.Price[0] 
+                            : productSupply.SupplyDetail.Price;
+                        price = priceInfo.PriceAmount;
+                    }
+                    
+                    let publisher = summary.publisher || '';
+                    if (!publisher && publishingDetail.Publisher) {
+                        const publisherInfo = Array.isArray(publishingDetail.Publisher) 
+                            ? publishingDetail.Publisher[0] 
+                            : publishingDetail.Publisher;
+                        publisher = publisherInfo.PublisherName || '';
+                    }
+                    
+                    let author = summary.author || '';
+                    if (!author && descriptiveDetail.Contributor) {
+                        const contributors = Array.isArray(descriptiveDetail.Contributor) 
+                            ? descriptiveDetail.Contributor 
+                            : [descriptiveDetail.Contributor];
+                        const authors = contributors
+                            .filter(c => c.ContributorRole && (c.ContributorRole.includes('A01') || c.ContributorRole.includes('著')))
+                            .map(c => c.PersonName || c.PersonNameInverted)
+                            .filter(name => name);
+                        author = authors.join(', ') || summary.author || '';
+                    }
+                    
+                    // openBD CDN URLを直接構築（summary.coverがnullでもISBNから生成可能）
+                    const thumbnailUrls = [];
+                    
+                    // 1) openBD Cover CDNを最優先で追加
+                    if (/^\d{13}$/.test(isbn)) {
+                        const openBDCoverUrl = `https://cover.openbd.jp/${isbn}.jpg`;
+                        thumbnailUrls.push(openBDCoverUrl);
+                        console.log(`✅ openBD CDN URL追加: ${openBDCoverUrl}`);
+                    }
+                    
+                    // 2) summary.coverフィールドがあれば追加（通常はHTTP）
+                    if (summary.cover) {
+                        let coverUrl = summary.cover;
+                        if (coverUrl.startsWith('http:')) {
+                            coverUrl = coverUrl.replace('http:', 'https:');
+                        }
+                        if (!thumbnailUrls.includes(coverUrl)) {
+                            thumbnailUrls.push(coverUrl);
+                            console.log(`✅ summary.cover追加: ${coverUrl}`);
+                        }
+                    }
+                    
+                    console.log(`🎯 openBD最終URL数: ${thumbnailUrls.length}`);
+                    
+                    return {
+                        price: price ? parseInt(price) : null,
+                        title: summary.title || '',
+                        authors: author,
+                        publisher: publisher,
+                        publishedDate: summary.pubdate || '',
+                        pageCount: null,
+                        thumbnail: thumbnailUrls.length > 0 ? thumbnailUrls[0] : null,
+                        thumbnailUrls: thumbnailUrls,
+                        description: '',
+                        isbn: summary.isbn || isbn,
+                        source: 'openBD'
+                    };
+                }
+                
+                return null;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('openBD API timeout');
+                } else {
+                    console.warn('openBD API failed:', error);
+                }
+                return null;
+            }
+        }
+        
+        // 価格を100円単位で切り上げ
+        function roundUpToHundred(price) {
+            return Math.ceil(price / 100) * 100;
+        }
+
+        // 候補URL群を優先順位順に生成（複数CDN対応）
+        function buildCoverCandidates(book) {
+            const urls = [];
+
+            // 1) openBD Cover CDN（最優先・最も安定）
+            if (book.isbn && /^\d{13}$/.test(book.isbn)) {
+                urls.push(`https://cover.openbd.jp/${book.isbn}.jpg`);
+            }
+
+            // 2) Google Books のURL（volumeIdがある場合）
+            if (book.googleVolumeId) {
+                // 形式1: 基本形式（zoom なし）
+                urls.push(`https://books.google.com/books/content?id=${book.googleVolumeId}&printsec=frontcover&source=gbs_api&img=1`);
+                
+                // 形式2: zoom パラメータ付き（複数の zoom レベル）
+                for (let z = 1; z <= 5; z++) {
+                    urls.push(`https://books.google.com/books/content?id=${book.googleVolumeId}&printsec=frontcover&source=gbs_api&img=1&zoom=${z}`);
+                }
+                
+                // 形式3: 代替パス
+                urls.push(`https://books.google.jp/books?id=${book.googleVolumeId}&printsec=frontcover&img=1&zoom=1`);
+            }
+
+            // 3) 国会図書館 NDL API（ISBN対応）
+            if (book.isbn && /^\d{13}$/.test(book.isbn)) {
+                urls.push(`https://ndlsearch.ndl.go.jp/api/v1/cover?isbn=${book.isbn}`);
+            }
+
+            // 4) Rakuten Books CDN（既存URL）
+            if (Array.isArray(book.thumbnailUrls)) {
+                for (const u of book.thumbnailUrls) {
+                    if (u && u.includes('rakuten')) {
+                        urls.push(u.startsWith('http:') ? u.replace('http:', 'https:') : u);
+                    }
+                }
+            }
+
+            // 5) その他の既存URL（HTTPS化）
+            if (Array.isArray(book.thumbnailUrls)) {
+                for (const u of book.thumbnailUrls) {
+                    if (!u || u.includes('rakuten') || u.includes('google') || u.includes('openbd') || u.includes('ndl')) continue;
+                    urls.push(u.startsWith('http:') ? u.replace('http:', 'https:') : u);
+                }
+            }
+
+            // 6) 既存の単体URL（HTTPS化）
+            if (book.thumbnail) {
+                const t = book.thumbnail.startsWith('http:')
+                    ? book.thumbnail.replace('http:', 'https:')
+                    : book.thumbnail;
+                if (!urls.includes(t)) {
+                    urls.push(t);
+                }
+            }
+
+            // 7) 重複排除
+            return [...new Set(urls)];
+        }
+
+        // 書影を生成する関数
+        function generateBookCover(book) {
+            const urls = buildCoverCandidates(book);
+
+            // 候補が無ければ既存のフォールバックを表示
+            if (urls.length === 0) {
+                return `
+                    <div class="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-200 rounded-lg flex flex-col items-center justify-center text-gray-700 text-xs font-medium shadow-sm border border-blue-200">
+                        ${generateFallbackCover(book)}
+                    </div>
+                `;
+            }
+
+            // 1枚でも読み込めれば成功。失敗したら順次次へ切替
+            return `
+                <div class="w-full h-full relative">
+                    ${urls.map((url, index) => `
+                        <img 
+                            src="${url}" 
+                            alt="${book.title}" 
+                            class="w-full h-full object-cover rounded-lg shadow-sm absolute inset-0 ${index > 0 ? 'hidden' : ''}" 
+                            loading="lazy"
+                            data-index="${index}"
+                            data-book-id="${book.id}"
+                            data-url-count="${urls.length}"
+                            onerror="handleImageError(this)"
+                            onload="handleImageLoad(this)"
+                            referrerpolicy="no-referrer"
+                        >
+                    `).join('')}
+                    <div id="fallback-${book.id}" class="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-200 rounded-lg flex flex-col items-center justify-center text-gray-700 text-xs font-medium shadow-sm border border-blue-200 hidden">
+                        ${generateFallbackCover(book)}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 画像読み込みエラー処理
+        function handleImageError(img) {
+            const currentIndex = parseInt(img.dataset.index);
+            const bookId = img.dataset.bookId;
+            const urlCount = parseInt(img.dataset.urlCount);
+            const container = img.parentElement;
+            
+            img.style.display = 'none';
+            
+            const nextIndex = currentIndex + 1;
+            if (nextIndex < urlCount) {
+                const nextImg = container.querySelector('img[data-index="' + nextIndex + '"]');
+                if (nextImg) {
+                    nextImg.classList.remove('hidden');
+                }
+            } else {
+                const fallback = document.getElementById(`fallback-${bookId}`);
+                if (fallback) {
+                    fallback.classList.remove('hidden');
+                }
+            }
+        }
+
+        // 画像読み込み成功処理
+        function handleImageLoad(img) {
+            const currentIndex = parseInt(img.dataset.index);
+            const bookId = img.dataset.bookId;
+            const container = img.parentElement;
+            
+            const allImages = container.querySelectorAll('img');
+            allImages.forEach((otherImg, index) => {
+                if (index !== currentIndex) {
+                    otherImg.remove();
+                }
+            });
+            
+            const fallback = document.getElementById(`fallback-${bookId}`);
+            if (fallback) {
+                fallback.remove();
+            }
+        }
+
+        // フォールバック書影を生成
+        function generateFallbackCover(book) {
+            const title = book.title || '不明なタイトル';
+            const author = book.authors || '不明な著者';
+            const publisher = book.publisher || '';
+            
+            const firstChar = title.charAt(0);
+            
+            const colors = [
+                'from-red-100 to-red-200 border-red-300',
+                'from-blue-100 to-blue-200 border-blue-300',
+                'from-green-100 to-green-200 border-green-300',
+                'from-purple-100 to-purple-200 border-purple-300',
+                'from-yellow-100 to-yellow-200 border-yellow-300',
+                'from-pink-100 to-pink-200 border-pink-300',
+                'from-indigo-100 to-indigo-200 border-indigo-300',
+                'from-gray-100 to-gray-200 border-gray-300'
+            ];
+            
+            const colorIndex = title.length % colors.length;
+            const colorClass = colors[colorIndex];
+            
+            const displayTitle = title.length > 12 ? title.substring(0, 12) + '...' : title;
+            const displayAuthor = author.length > 10 ? author.substring(0, 10) + '...' : author;
+            
+            return `
+                <div class="w-full h-full bg-gradient-to-br ${colorClass} rounded-lg flex flex-col items-center justify-center p-1 text-center">
+                    <div class="text-lg font-bold text-gray-800 mb-1">${firstChar}</div>
+                    <div class="text-xs font-semibold text-gray-700 leading-tight mb-1 px-1" style="font-size: 9px; line-height: 1.2;">
+                        ${displayTitle}
+                    </div>
+                    <div class="text-xs text-gray-600 leading-tight px-1" style="font-size: 8px; line-height: 1.1;">
+                        ${displayAuthor}
+                    </div>
+                    ${publisher ? `<div class="text-xs text-gray-500 mt-1" style="font-size: 7px;">${publisher.length > 8 ? publisher.substring(0, 8) + '...' : publisher}</div>` : ''}
+                    <div class="text-xs text-gray-400 mt-auto" style="font-size: 7px;">書影</div>
+                </div>
+            `;
+        }
+
+        // 複数APIから書籍情報を統合取得（並列実行で高速化・エラーハンドリング強化）
+        async function fetchBookInfoFromMultipleAPIs(isbn) {
+            console.log(`書籍情報取得開始: ${isbn}`);
+            
+            let finalBookInfo = {
+                price: null,
+                title: '',
+                authors: '',
+                publisher: '',
+                publishedDate: '',
+                pageCount: null,
+                thumbnail: null,
+                thumbnailUrls: [],
+                description: '',
+                isbn: isbn,
+                googleVolumeId: null,
+                priceSource: '',
+                publisherSource: '',
+                sources: []
+            };
+
+            // 複数APIを並列実行
+            try {
+                const [googleInfo, rakutenInfo, openBDInfo] = await Promise.allSettled([
+                    fetchGoogleBooksInfo(isbn),
+                    fetchRakutenBooksInfo(isbn),
+                    fetchOpenBDBookInfo(isbn)
+                ]);
+
+                // Google Booksの結果を優先度1で統合
+                if (googleInfo.status === 'fulfilled' && googleInfo.value) {
+                    console.log(`✓ Google Books API成功: ${isbn}`);
+                    finalBookInfo = { ...finalBookInfo, ...googleInfo.value };
+                    finalBookInfo.sources.push('Google Books');
+                    if (googleInfo.value.price) {
+                        finalBookInfo.priceSource = 'Google Books';
+                    }
+                    if (googleInfo.value.publisher) {
+                        finalBookInfo.publisherSource = 'Google Books';
+                    }
+                    if (googleInfo.value.googleVolumeId) {
+                        finalBookInfo.googleVolumeId = googleInfo.value.googleVolumeId;
+                    }
+                } else {
+                    console.warn(`✗ Google Books API失敗`);
+                }
+
+                // 楽天ブックスの結果を優先度2で統合（足りない情報を補完）
+                if (rakutenInfo.status === 'fulfilled' && rakutenInfo.value) {
+                    console.log(`✓ Rakuten Books API成功: ${isbn}`);
+                    finalBookInfo.sources.push('Rakuten Books');
+                    
+                    if (!finalBookInfo.price && rakutenInfo.value.price) {
+                        finalBookInfo.price = rakutenInfo.value.price;
+                        finalBookInfo.priceSource = 'Rakuten Books';
+                    }
+                    if (!finalBookInfo.publisher && rakutenInfo.value.publisher) {
+                        finalBookInfo.publisher = rakutenInfo.value.publisher;
+                        finalBookInfo.publisherSource = 'Rakuten Books';
+                    }
+                    if (rakutenInfo.value.thumbnailUrls && rakutenInfo.value.thumbnailUrls.length > 0) {
+                        finalBookInfo.thumbnailUrls = [...finalBookInfo.thumbnailUrls, ...rakutenInfo.value.thumbnailUrls];
+                    }
+                    if (!finalBookInfo.thumbnail && rakutenInfo.value.thumbnail) {
+                        finalBookInfo.thumbnail = rakutenInfo.value.thumbnail;
+                    }
+                    if (!finalBookInfo.title && rakutenInfo.value.title) {
+                        finalBookInfo.title = rakutenInfo.value.title;
+                    }
+                    if (!finalBookInfo.authors && rakutenInfo.value.authors) {
+                        finalBookInfo.authors = rakutenInfo.value.authors;
+                    }
+                } else {
+                    console.warn(`✗ Rakuten Books API失敗`);
+                }
+
+                // openBDの結果を優先度3で統合
+                if (openBDInfo.status === 'fulfilled' && openBDInfo.value) {
+                    console.log(`✓ openBD API成功: ${isbn}`);
+                    finalBookInfo.sources.push('openBD');
+                    
+                    if (!finalBookInfo.price && openBDInfo.value.price) {
+                        finalBookInfo.price = openBDInfo.value.price;
+                        finalBookInfo.priceSource = 'openBD';
+                    }
+                    if (!finalBookInfo.publisher && openBDInfo.value.publisher) {
+                        finalBookInfo.publisher = openBDInfo.value.publisher;
+                        finalBookInfo.publisherSource = 'openBD';
+                    }
+                    if (openBDInfo.value.thumbnailUrls && openBDInfo.value.thumbnailUrls.length > 0) {
+                        finalBookInfo.thumbnailUrls = [...finalBookInfo.thumbnailUrls, ...openBDInfo.value.thumbnailUrls];
+                    }
+                    if (!finalBookInfo.thumbnail && openBDInfo.value.thumbnail) {
+                        finalBookInfo.thumbnail = openBDInfo.value.thumbnail;
+                    }
+                    if (!finalBookInfo.title && openBDInfo.value.title) {
+                        finalBookInfo.title = openBDInfo.value.title;
+                    }
+                    if (!finalBookInfo.authors && openBDInfo.value.authors) {
+                        finalBookInfo.authors = openBDInfo.value.authors;
+                    }
+                } else {
+                    console.warn(`✗ openBD API失敗`);
+                }
+            } catch (error) {
+                console.warn('API aggregation error:', error);
+            }
+            
+            // 重複排除とHTTPS化
+            finalBookInfo.thumbnailUrls = [...new Set(finalBookInfo.thumbnailUrls.map(url => 
+                url && url.startsWith('http:') ? url.replace('http:', 'https:') : url
+            ).filter(url => url))];
+
+            console.log(`書籍情報取得完了: ${isbn} (${finalBookInfo.sources.join(', ')})`);
+            console.log(`取得URL数: ${finalBookInfo.thumbnailUrls.length}`);
+            
+            return finalBookInfo.sources.length > 0 ? finalBookInfo : null;
+        }
+
+        // 本を追加
+        async function addBook() {
+            const isbn = document.getElementById('isbnInput').value.trim();
+            const loadingEl = document.getElementById('loadingMessage');
+            const errorEl = document.getElementById('errorMessage');
+            
+            if (!isbn) {
+                showError('ISBNコードを入力してください');
+                return;
+            }
+
+            const cleanIsbn = isbn.replace(/[-\s]/g, '');
+            if (!/^\d{10}(\d{3})?$/.test(cleanIsbn)) {
+                showError('正しいISBNコードを入力してください（10桁または13桁の数字）');
+                return;
+            }
+
+            loadingEl.classList.remove('hidden');
+            errorEl.classList.add('hidden');
+
+            try {
+                let cachedInfo = await getCachedBookInfo(cleanIsbn);
+                let bookData = null;
+                
+                if (cachedInfo) {
+                    bookData = cachedInfo;
+                } else {
+                    bookData = await fetchBookInfoFromMultipleAPIs(cleanIsbn);
+                    
+                    if (bookData) {
+                        cacheBookInfo(cleanIsbn, bookData);
+                    }
+                }
+
+                if (bookData) {
+                    let price = 100;
+                    let originalPrice = null;
+                    let priceSource = 'デフォルト';
+                    let priceNote = '価格情報が取得できませんでした';
+                    
+                    if (bookData.price) {
+                        originalPrice = bookData.price;
+                        price = roundUpToHundred(originalPrice);
+                        priceSource = bookData.priceSource || 'API取得';
+                        priceNote = `${bookData.priceSource}を100円単位で切り上げ（元価格: ¥${originalPrice.toLocaleString()}）`;
+                    }
+                    
+                    const newBook = {
+                        id: Date.now(),
+                        isbn: cleanIsbn,
+                        title: bookData.title || '不明なタイトル',
+                        authors: bookData.authors || '不明な著者',
+                        publisher: bookData.publisher || '出版社情報なし',
+                        thumbnail: bookData.thumbnail,
+                        thumbnailUrls: bookData.thumbnailUrls || [],
+                        googleVolumeId: bookData.googleVolumeId || null,
+                        addedDate: new Date().toISOString(),
+                        price: price,
+                        originalPrice: originalPrice,
+                        priceSource: priceSource,
+                        priceNote: priceNote,
+                        publishedDate: bookData.publishedDate || '不明',
+                        pageCount: bookData.pageCount || '不明',
+                        description: bookData.description || '',
+                        sources: bookData.sources || [],
+                        publisherSource: bookData.publisherSource || ''
+                    };
+
+                    books.unshift(newBook);
+                    saveBooks();
+                    updateDisplay();
+                    document.getElementById('isbnInput').value = '';
+                    
+                    const milestoneReached = books.length % 5 === 0 && books.length > 0;
+                    let successMessage = `本を追加しました！¥${price.toLocaleString()}貯金`;
+                    
+                    if (originalPrice && originalPrice !== price) {
+                        successMessage += ` (¥${originalPrice.toLocaleString()}→¥${price.toLocaleString()})`;
+                    }
+                    
+                    if (milestoneReached) {
+                        successMessage += ` + ${books.length}冊達成ボーナス1000円！`;
+                    }
+                    
+                    showSuccess(successMessage);
+                    enqueueSave();
+                } else {
+                    showError('このISBNコードの本が見つかりませんでした。日本で販売されている書籍のISBNをご確認ください。');
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                showError('書籍情報を取得できませんでした。ネットワーク接続を確認してください。');
+            }
+
+            loadingEl.classList.add('hidden');
+        }
+
+        // 購入済みアイテムを追加
+        function isPurchased(itemId, isSpecial = false) {
+            if (isSpecial) {
+                const today = new Date().toDateString();
+                return purchases.some(p => p.id === itemId && new Date(p.date).toDateString() === today);
+            } else {
+                return purchases.some(p => p.id === itemId);
+            }
+        }
+
+        // 名前変更
+        function changeUsername() {
+            document.getElementById('newUsernameInput').value = username;
+            document.getElementById('changeNameModal').classList.remove('hidden');
+        }
+
+        // 名前変更モーダルを閉じる
+        function closeChangeNameModal() {
+            document.getElementById('changeNameModal').classList.add('hidden');
+        }
+
+        // 名前変更を確定
+        function confirmNameChange() {
+            const newUsername = document.getElementById('newUsernameInput').value.trim();
+            
+            if (!newUsername) {
+                showError('名前を入力してください');
+                return;
+            }
+            
+            username = newUsername;
+            localStorage.setItem('username', username);
+            document.getElementById('displayUsername').textContent = username;
+            closeChangeNameModal();
+            showSuccess(`名前を変更しました！`);
+            
+            enqueueSave();
+        }
+
+        // ショップアイテム
+        const shopItems = [
+            { id: 1, name: '勇者の剣', price: 2400, emoji: '⚔️', description: 'カッコいい勇者の剣' },
+            { id: 2, name: '魔法の杖', price: 2000, emoji: '🔮', description: '魔法使いの杖' },
+            { id: 3, name: '弓矢セット', price: 1800, emoji: '🏹', description: 'アーチャーの武器' },
+            { id: 4, name: '盾', price: 1600, emoji: '🛡️', description: '守りの盾' },
+            { id: 5, name: '手裏剣', price: 1200, emoji: '🌀', description: '忍者の手裏剣' },
+            { id: 6, name: 'ダイヤモンド', price: 4000, emoji: '💎', description: 'キラキラ光る宝石' },
+            { id: 7, name: '金の王冠', price: 3600, emoji: '👑', description: '王様の王冠' },
+            { id: 8, name: '宝箱', price: 3000, emoji: '💰', description: '秘密の宝箱' },
+            { id: 9, name: 'ルビー', price: 2600, emoji: '🔴', description: '赤い宝石' },
+            { id: 10, name: 'エメラルド', price: 2600, emoji: '🟢', description: '緑の宝石' },
+            { id: 11, name: 'ロボット', price: 2800, emoji: '🤖', description: 'カッコいいロボット' },
+            { id: 12, name: '恐竜フィギュア', price: 1800, emoji: '🦕', description: 'リアルな恐竜' },
+            { id: 13, name: 'ドラゴン', price: 4400, emoji: '🐉', description: '伝説のドラゴン' },
+            { id: 14, name: 'ユニコーン', price: 2400, emoji: '🦄', description: '幻のユニコーン' },
+            { id: 15, name: 'ライオン', price: 1600, emoji: '🦁', description: '百獣の王' },
+            { id: 16, name: 'ポケモンカード', price: 1000, emoji: '🃏', description: 'レアカードパック' },
+            { id: 17, name: '遊戯王カード', price: 1200, emoji: '🎴', description: '強力なカード' },
+            { id: 18, name: 'ゲーム機', price: 6000, emoji: '🎮', description: '最新ゲーム機' },
+            { id: 19, name: 'パズル', price: 1000, emoji: '🧩', description: '1000ピースパズル' },
+            { id: 20, name: 'スポーツカー', price: 5000, emoji: '🏎️', description: '超高速カー' },
+            { id: 21, name: 'ヘリコプター', price: 5400, emoji: '🚁', description: '空を飛ぶヘリ' },
+            { id: 22, name: 'ロケット', price: 7000, emoji: '🚀', description: '宇宙ロケット' },
+            { id: 23, name: 'バイク', price: 3600, emoji: '🏍️', description: 'カッコいいバイク' },
+            { id: 24, name: '子犬', price: 4000, emoji: '🐶', description: '可愛い子犬' },
+            { id: 25, name: '子猫', price: 3800, emoji: '🐱', description: 'フワフワ子猫' },
+            { id: 26, name: 'ハムスター', price: 1600, emoji: '🐹', description: '小さなハムスター' },
+            { id: 27, name: 'ウサギ', price: 2200, emoji: '🐰', description: 'ピョンピョンウサギ' },
+            { id: 28, name: 'アイスクリーム', price: 600, emoji: '🍦', description: '冷たくて美味しい' },
+            { id: 29, name: 'ケーキ', price: 1000, emoji: '🎂', description: '豪華誕生日ケーキ' },
+            { id: 30, name: 'チョコレート', price: 400, emoji: '🍫', description: '甘いチョコ' },
+            { id: 31, name: 'ドーナツ', price: 600, emoji: '🍩', description: 'フワフワドーナツ' },
+            { id: 32, name: 'ポップコーン', price: 400, emoji: '🍿', description: 'サクサクポップコーン' },
+            { id: 33, name: '色鉛筆セット', price: 1200, emoji: '🖍️', description: '48色セット' },
+            { id: 34, name: 'スケッチブック', price: 1000, emoji: '📓', description: '大きなスケッチブック' },
+            { id: 35, name: 'シール', price: 400, emoji: '🏷️', description: 'キラキラシール' },
+            { id: 36, name: '伝説の聖剣エクスカリバー', price: 30000, emoji: '🗡️', description: '王者だけが持てる聖剣', rarity: 'legendary' },
+            { id: 37, name: '古代ドラゴンの卵', price: 24000, emoji: '🥚', description: '1000年に一度孵化する卵', rarity: 'legendary' },
+            { id: 38, name: '宇宙戦艦', price: 28000, emoji: '🛸', description: '銀河を支配する巨大戦艦', rarity: 'legendary' },
+            { id: 39, name: '時空の魔法石', price: 22000, emoji: '🌈', description: '時間を操る七色の神秘石', rarity: 'legendary' },
+            { id: 40, name: '黄金のフェニックス', price: 18000, emoji: '🔥', description: '不死鳥の化身', rarity: 'legendary' },
+            { id: 41, name: '究極ロボット', price: 30000, emoji: '🦾', description: '最強の戦闘ロボット', rarity: 'legendary' },
+            { id: 44, name: '星の王冠', price: 24000, emoji: '🌟', description: '宇宙皇帝の証', rarity: 'legendary' },
+            { id: 45, name: '無限の宝石', price: 30000, emoji: '💠', description: '全ての力を秘めた石', rarity: 'legendary' },
+            { id: 51, name: '怪盗の銃', price: 25000, emoji: '🔫', description: '伝説の怪盗が愛用した幻の銃', rarity: 'legendary' },
+            { id: 52, name: '幻のヘルメット', price: 26000, emoji: '⛑️', description: '神秘的な力を秘めた幻のヘルメット', rarity: 'legendary' },
+            { id: 46, name: '炎の剣', price: 9000, emoji: '⚔️', description: '炎を纏う魔剣', rarity: 'epic' },
+            { id: 47, name: '氷の盾', price: 8000, emoji: '🧊', description: '氷の力で守る盾', rarity: 'epic' },
+            { id: 48, name: '光の翼', price: 11000, emoji: '🕊️', description: '空を飛べる翼', rarity: 'epic' },
+            { id: 49, name: '地震の槌', price: 10000, emoji: '🔨', description: '大地を揺らす槌', rarity: 'epic' },
+            { id: 50, name: '光の杖', price: 8600, emoji: '✨', description: '光魔法の杖', rarity: 'epic' },
+            { id: 999, name: 'ゼウスの雷', price: 60000, emoji: '⚡', description: '全知全能の神の雷の力が宿す究極の武器', rarity: 'ultimate' }
+        ];
+
+        // 日替わり商品
+        function generateDailyBadges() {
+            const badges = [];
+            for (let month = 1; month <= 12; month++) {
+                const daysInMonth = new Date(2024, month, 0).getDate();
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const monthName = ['1月', '2月', '3月', '4月', '5月', '6月', 
+                                     '7月', '8月', '9月', '10月', '11月', '12月'][month - 1];
+                    badges.push({
+                        id: month * 100 + day,
+                        name: `${monthName}${day}日バッジ`,
+                        price: 200,
+                        emoji: '📅',
+                        description: `${monthName}${day}日の記念バッジ`,
+                        date: `${month}/${day}`
+                    });
+                }
+            }
+            return badges;
+        }
+        
+        const dailySpecials = generateDailyBadges();
+
+        function getTodaySpecial() {
+            const today = new Date();
+            const month = today.getMonth() + 1;
+            const day = today.getDate();
+            return dailySpecials.find(badge => badge.id === month * 100 + day);
+        }
+
+
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', async function() {
+            // IndexedDB初期化（バックグラウンド）
+            initIndexedDB().catch(err => console.warn('IndexedDB init failed:', err));
+            
+            username = localStorage.getItem('username') || '';
+            
+            const savedBooks = localStorage.getItem('readingBooks');
+            if (savedBooks) {
+                try {
+                    books = JSON.parse(savedBooks);
+                    // ページ読み込み時に書影データを補完（すべての本に対して実行）
+                    if (books.length > 0) {
+                        console.log('初期読み込み: 書影データの補完を開始');
+                        await rehydrateBooksForCovers(books);
+                        saveBooks();
+                        // 補完後にクラウドにも保存
+                        if (username) {
+                            await saveToGAS();
+                        }
+                    }
+                } catch (e) {
+                    books = [];
+                }
+            }
+            
+            const savedPurchases = localStorage.getItem('purchases');
+            if (savedPurchases) {
+                try {
+                    purchases = JSON.parse(savedPurchases);
+                } catch (e) {
+                    purchases = [];
+                }
+            }
+            
+            if (username) {
+                document.getElementById('displayUsername').textContent = username;
+                document.getElementById('nameDisplaySection').classList.remove('hidden');
+                document.getElementById('nameInputSection').classList.add('hidden');
+            } else {
+                document.getElementById('nameInputSection').classList.remove('hidden');
+                document.getElementById('nameDisplaySection').classList.add('hidden');
+            }
+            
+            updateDisplay();
+            
+            document.getElementById('isbnInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addBook();
+                }
+            });
+            
+            document.getElementById('usernameInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    setUsername();
+                }
+            });
+        });
+
+        // 表示を更新
+        function updateDisplay() {
+            updateSavings();
+            updateBooksList();
+            updateShop();
+            updateMyCollection();
+            updatePurchaseHistory();
+        }
+
+        // 貯金額を更新
+        function updateSavings() {
+            const bookBonus = books.reduce((total, book) => total + (book.price || 100), 0);
+            const milestoneBonus = Math.floor(books.length / 5) * 1000;
+            const spentMoney = parseFloat(localStorage.getItem('spentMoney') || '0');
+            const total = bookBonus + milestoneBonus - spentMoney;
+            document.getElementById('totalSavings').textContent = `¥${total.toLocaleString()}`;
+            document.getElementById('bookCount').textContent = books.length;
+            
+            const nextMilestone = Math.ceil(books.length / 5) * 5;
+            const booksToNext = nextMilestone - books.length;
+            const milestoneCount = Math.floor(books.length / 5);
+            
+            let milestoneHTML = '';
+            if (milestoneCount > 0) {
+                milestoneHTML += `<div class="milestone-badge inline-block bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-bold mr-2">達成 ${milestoneCount}回</div>`;
+            }
+            if (booksToNext > 0) {
+                milestoneHTML += `<span>次のボーナスまであと${booksToNext}冊</span>`;
+            } else if (books.length > 0) {
+                milestoneHTML += `<span class="text-yellow-300 font-bold">ボーナス達成！</span>`;
+            }
+            
+            document.getElementById('milestoneInfo').innerHTML = milestoneHTML;
+        }
+
+        // 本のリストを更新
+        function updateBooksList() {
+            const listEl = document.getElementById('booksList');
+            
+            if (books.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        まだ本が登録されていません。<br>
+                        ISBNコードを入力して最初の本を追加してみましょう！
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = books.map(book => {
+                const bookPrice = book.price || 100;
+                const originalPrice = book.originalPrice;
+                
+                let priceDisplay = `¥${bookPrice.toLocaleString()}`;
+                if (originalPrice && originalPrice !== bookPrice) {
+                    priceDisplay += ` (元: ¥${Math.floor(originalPrice)})`;
+                }
+                
+                return `
+                <div class="book-card bg-gray-50 rounded-xl p-3 flex gap-3">
+                    <div class="flex-shrink-0">
+                        <div class="w-20 h-28 relative">
+                            <div id="bookCover-${book.id}" class="w-full h-full">
+                                ${generateBookCover(book)}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-semibold text-gray-800 mb-1 truncate" title="${book.title}">${book.title}</h4>
+                        <div class="text-sm text-gray-600 mb-2 space-y-0.5">
+                            <div>著者: ${book.authors}</div>
+                            <div>出版社: ${book.publisher}</div>
+                        </div>
+                        
+                        <div class="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3 gap-y-0.5">
+                            <span>ISBN: ${book.isbn}</span>
+                            <span>追加: ${new Date(book.addedDate).toLocaleDateString('ja-JP')}</span>
+                            ${book.publishedDate && book.publishedDate !== '不明' ? `<span>出版: ${book.publishedDate}</span>` : ''}
+                            ${book.pageCount && book.pageCount !== '不明' ? `<span>${book.pageCount}p</span>` : ''}
+                        </div>
+                        
+                        <div class="mb-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-medium text-blue-700">${priceDisplay}</span>
+                                <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">${book.priceSource}</span>
+                            </div>
+                            
+                            ${book.priceNote ? `<p class="text-xs text-blue-600 mb-1">${book.priceNote}</p>` : ''}
+                            
+                            ${book.sources && book.sources.length > 0 ? 
+                                `<div class="text-xs text-gray-600">
+                                    ${book.sources.join(', ')}
+                                </div>` : ''
+                            }
+                            
+                            ${book.priceSource && (book.priceSource.includes('Google Books') || book.priceSource.includes('Rakuten') || book.priceSource.includes('openBD')) ?
+                                `<div class="mt-1 p-1.5 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">API取得価格のため実際と異なる場合があります</div>` :
+                                ''
+                            }
+                        </div>
+                        
+                        <div class="p-2 bg-white rounded border">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-medium text-gray-700">読書メモ</span>
+                                <button 
+                                    onclick="toggleCommentEdit(${book.id})" 
+                                    class="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                                    id="editBtn-${book.id}"
+                                >
+                                    ${book.comment ? '編集' : '追加'}
+                                </button>
+                            </div>
+                            
+                            <div id="commentDisplay-${book.id}" class="${book.comment ? '' : 'hidden'}">
+                                <p class="text-xs text-gray-700 whitespace-pre-wrap">${book.comment || ''}</p>
+                            </div>
+                            
+                            <div id="commentEdit-${book.id}" class="${book.comment ? 'hidden' : ''}">
+                                <textarea 
+                                    id="commentInput-${book.id}"
+                                    placeholder="この本の感想や学んだことを書いてみましょう..."
+                                    class="w-full p-2 text-xs border border-gray-300 rounded resize-none focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none"
+                                    rows="2"
+                                >${book.comment || ''}</textarea>
+                                <div class="flex gap-1 mt-1">
+                                    <button 
+                                        onclick="saveComment(${book.id})" 
+                                        class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                    >
+                                        保存
+                                    </button>
+                                    <button 
+                                        onclick="cancelCommentEdit(${book.id})" 
+                                        class="px-2 py-1 text-gray-600 hover:bg-gray-100 text-xs rounded transition-colors"
+                                    >
+                                        キャンセル
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="noComment-${book.id}" class="${book.comment ? 'hidden' : ''}">
+                                <p class="text-xs text-gray-500 italic">まだメモはありません</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0 flex flex-col justify-between items-end">
+                        <button 
+                            onclick="showDeleteModal(${book.id})" 
+                            class="delete-btn bg-red-100 hover:bg-red-200 text-red-600 p-1.5 rounded-lg"
+                            title="削除"
+                        >
+                            🗑️
+                        </button>
+                        <div class="text-green-600 font-semibold text-sm">+¥${bookPrice.toLocaleString()}</div>
+                    </div>
+                </div>
+            `;
+            }).join('');
+        }
+
+        // 削除モーダルを表示
+        function showDeleteModal(bookId) {
+            deleteBookId = bookId;
+            const book = books.find(b => b.id === bookId);
+            const bookPrice = book ? (book.price || 100) : 100;
+            
+            document.getElementById('deleteModalMessage').textContent = 
+                `この本を削除しますか？貯金額が¥${bookPrice.toLocaleString()}減額されます。`;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+
+        // 削除モーダルを閉じる
+        function closeDeleteModal() {
+            deleteBookId = null;
+            document.getElementById('deleteModal').classList.add('hidden');
+        }
+
+        // 削除を確定
+        function confirmDelete() {
+            if (deleteBookId) {
+                books = books.filter(book => book.id !== deleteBookId);
+                saveBooks();
+                updateDisplay();
+                closeDeleteModal();
+                showSuccess('本を削除しました');
+                enqueueSave();
+            }
+        }
+
+        // データを保存
+        function saveBooks() {
+            localStorage.setItem('readingBooks', JSON.stringify(books));
+        }
+
+        // エラーメッセージを表示
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+            setTimeout(() => errorEl.classList.add('hidden'), 5000);
+        }
+
+        // 成功メッセージを表示
+        function showSuccess(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.className = 'mt-3 text-green-600';
+            errorEl.classList.remove('hidden');
+            setTimeout(() => {
+                errorEl.classList.add('hidden');
+                errorEl.className = 'hidden mt-3 text-red-600';
+            }, 3000);
+        }
+
+        // コメント編集の表示切り替え
+        function toggleCommentEdit(bookId) {
+            const displayEl = document.getElementById(`commentDisplay-${bookId}`);
+            const editEl = document.getElementById(`commentEdit-${bookId}`);
+            const noCommentEl = document.getElementById(`noComment-${bookId}`);
+            
+            displayEl.classList.add('hidden');
+            noCommentEl.classList.add('hidden');
+            editEl.classList.remove('hidden');
+            
+            document.getElementById(`commentInput-${bookId}`).focus();
+        }
+
+        // コメント編集をキャンセル
+        function cancelCommentEdit(bookId) {
+            const book = books.find(b => b.id === bookId);
+            const displayEl = document.getElementById(`commentDisplay-${bookId}`);
+            const editEl = document.getElementById(`commentEdit-${bookId}`);
+            const noCommentEl = document.getElementById(`noComment-${bookId}`);
+            
+            editEl.classList.add('hidden');
+            
+            if (book.comment) {
+                displayEl.classList.remove('hidden');
+            } else {
+                noCommentEl.classList.remove('hidden');
+            }
+            
+            document.getElementById(`commentInput-${bookId}`).value = book.comment || '';
+        }
+
+        // コメントを保存
+        function saveComment(bookId) {
+            const commentText = document.getElementById(`commentInput-${bookId}`).value.trim();
+            const book = books.find(b => b.id === bookId);
+            
+            if (book) {
+                book.comment = commentText;
+                saveBooks();
+                updateBooksList();
+                showSuccess('コメント保存完了！');
+                enqueueSave();
+            }
+        }
+
+        // ショップを更新
+        function updateShop() {
+            const shopEl = document.getElementById('shopItems');
+            const bookBonus = books.reduce((total, book) => total + (book.price || 100), 0);
+            const milestoneBonus = Math.floor(books.length / 5) * 1000;
+            const spentMoney = parseFloat(localStorage.getItem('spentMoney') || '0');
+            const currentSavings = bookBonus + milestoneBonus - spentMoney;
+            const todaySpecial = getTodaySpecial();
+            
+            let shopHTML = '';
+            
+            if (todaySpecial) {
+                const canAffordSpecial = currentSavings >= todaySpecial.price;
+                const alreadyPurchasedToday = isPurchased(todaySpecial.id, true);
+                const isAvailable = canAffordSpecial && !alreadyPurchasedToday;
+                
+                shopHTML += `
+                    <div class="bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl p-4 text-center border-2 border-yellow-400 ${isAvailable ? 'hover:from-yellow-200 hover:to-orange-200' : 'opacity-60'}">
+                        <div class="text-xs bg-red-500 text-white px-2 py-1 rounded-full mb-2 inline-block">本日限定！</div>
+                        <div class="text-4xl mb-2">${todaySpecial.emoji}</div>
+                        <h4 class="font-semibold text-gray-800 mb-1">${todaySpecial.name}</h4>
+                        <div class="text-lg font-bold text-red-600 mb-3">¥${todaySpecial.price}</div>
+                        <button 
+                            onclick="showPurchaseModal(${todaySpecial.id}, true)" 
+                            class="w-full px-3 py-2 ${isAvailable ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'} rounded-lg text-sm font-medium transition-colors"
+                            ${!isAvailable ? 'disabled' : ''}
+                        >
+                            ${alreadyPurchasedToday ? '本日購入済み' : (canAffordSpecial ? '限定購入' : '貯金不足')}
+                        </button>
+                    </div>
+                `;
+            }
+            
+            const sortedItems = [...shopItems].sort((a, b) => a.price - b.price);
+            shopHTML += sortedItems.map(item => {
+                const canAfford = currentSavings >= item.price;
+                const alreadyPurchased = isPurchased(item.id, false);
+                
+                let isUnlocked = true;
+                if (item.id === 999) {
+                    const regularItems = shopItems.filter(i => i.id !== 999);
+                    const purchasedRegularItems = regularItems.filter(i => isPurchased(i.id, false));
+                    isUnlocked = purchasedRegularItems.length === regularItems.length;
+                }
+                
+                const isAvailable = canAfford && !alreadyPurchased && isUnlocked;
+                let rarityClass = 'bg-gray-50';
+                let rarityBadge = '';
+                let priceColor = 'text-blue-600';
+                
+                if (item.rarity === 'legendary') {
+                    rarityClass = 'bg-gradient-to-br from-yellow-100 to-orange-100 border-2 border-yellow-400';
+                    rarityBadge = '<div class="text-xs bg-yellow-500 text-white px-2 py-1 rounded-full mb-2 inline-block">伝説</div>';
+                    priceColor = 'text-orange-600';
+                } else if (item.rarity === 'epic') {
+                    rarityClass = 'bg-gradient-to-br from-purple-100 to-pink-100 border-2 border-purple-400';
+                    rarityBadge = '<div class="text-xs bg-purple-500 text-white px-2 py-1 rounded-full mb-2 inline-block">エピック</div>';
+                    priceColor = 'text-purple-600';
+                } else if (item.rarity === 'ultimate') {
+                    rarityClass = 'bg-gradient-to-br from-red-100 to-yellow-100 border-4 border-red-500 shadow-2xl';
+                    rarityBadge = '<div class="text-xs bg-red-600 text-white px-2 py-1 rounded-full mb-2 inline-block animate-pulse">究極</div>';
+                    priceColor = 'text-red-700';
+                }
+                
+                return `
+                    <div class="${rarityClass} rounded-xl p-4 text-center ${isAvailable ? 'hover:brightness-105' : 'opacity-60'}">
+                        ${rarityBadge}
+                        ${alreadyPurchased ? '<div class="text-xs bg-gray-500 text-white px-2 py-1 rounded-full mb-2 inline-block">購入済み</div>' : ''}
+                        <div class="text-4xl mb-2 ${item.id === 999 ? 'zeus-lightning' : ''}">${item.emoji}</div>
+                        <h4 class="font-semibold text-gray-800 mb-1">${item.name}</h4>
+                        <div class="text-lg font-bold ${priceColor} mb-3">¥${item.price.toLocaleString()}</div>
+                        <button 
+                            onclick="showPurchaseModal(${item.id})" 
+                            class="w-full px-3 py-2 ${isAvailable ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'} rounded-lg text-sm font-medium transition-colors"
+                            ${!isAvailable ? 'disabled' : ''}
+                        >
+                            ${alreadyPurchased ? '売り切れ' : (!isUnlocked ? '未解放' : (canAfford ? '購入' : '貯金不足'))}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            
+            shopEl.innerHTML = shopHTML;
+        }
+
+        // マイコレクションを更新
+        function updateMyCollection() {
+            const collectionEl = document.getElementById('myCollection');
+            
+            if (purchases.length === 0) {
+                collectionEl.innerHTML = `
+                    <div class="text-center text-gray-500 py-8 col-span-full">
+                        アイテム未購入
+                    </div>
+                `;
+                return;
+            }
+
+            const uniqueItems = [];
+            const itemCounts = {};
+            
+            purchases.forEach(purchase => {
+                const key = purchase.name;
+                if (!itemCounts[key]) {
+                    itemCounts[key] = 0;
+                    uniqueItems.push(purchase);
+                }
+                itemCounts[key]++;
+            });
+
+            collectionEl.innerHTML = uniqueItems.map(item => `
+                <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-3 text-center border border-blue-200">
+                    <div class="text-3xl mb-1 ${item.id === 999 ? 'zeus-lightning' : ''}">${item.emoji}</div>
+                    <h5 class="text-xs font-semibold text-gray-800 mb-1 truncate">${item.name}</h5>
+                    <div class="text-xs text-blue-600 font-medium">${itemCounts[item.name]}個</div>
+                </div>
+            `).join('');
+        }
+
+        // 購入履歴を更新
+        function updatePurchaseHistory() {
+            const historyEl = document.getElementById('purchaseHistory');
+            
+            if (purchases.length === 0) {
+                historyEl.innerHTML = `
+                    <div class="text-center text-gray-500 py-4">
+                        購入履歴なし
+                    </div>
+                `;
+                return;
+            }
+
+            historyEl.innerHTML = purchases.slice().reverse().map(purchase => `
+                <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl ${purchase.id === 999 ? 'zeus-lightning' : ''}">${purchase.emoji}</span>
+                        <div>
+                            <div class="font-medium text-gray-800">${purchase.name}</div>
+                            <div class="text-xs text-gray-500">${new Date(purchase.date).toLocaleDateString('ja-JP')}</div>
+                        </div>
+                    </div>
+                    <div class="text-red-600 font-semibold">-¥${purchase.price}</div>
+                </div>
+            `).join('');
+        }
+
+        // 購入モーダルを表示
+        function showPurchaseModal(itemId, isSpecial = false) {
+            let item;
+            if (isSpecial) {
+                item = getTodaySpecial();
+            } else {
+                item = shopItems.find(i => i.id === itemId);
+            }
+            
+            const bookBonus = books.reduce((total, book) => total + (book.price || 100), 0);
+            const milestoneBonus = Math.floor(books.length / 5) * 1000;
+            const spentMoney = parseFloat(localStorage.getItem('spentMoney') || '0');
+            const currentSavings = bookBonus + milestoneBonus - spentMoney;
+            
+            if (isPurchased(itemId, isSpecial)) return;
+            
+            if (itemId === 999) {
+                const regularItems = shopItems.filter(i => i.id !== 999);
+                const purchasedRegularItems = regularItems.filter(i => isPurchased(i.id, false));
+                if (purchasedRegularItems.length !== regularItems.length) return;
+            }
+            
+            if (!item || currentSavings < item.price) return;
+            
+            purchaseItem = item;
+            
+            document.getElementById('modalCurrentSavings').textContent = `¥${currentSavings.toLocaleString()}`;
+            document.getElementById('modalAfterPurchase').textContent = `購入後: ¥${(currentSavings - item.price).toLocaleString()}`;
+            
+            document.getElementById('purchaseItemInfo').innerHTML = `
+                <div class="text-center">
+                    ${isSpecial ? '<div class="text-xs bg-red-500 text-white px-2 py-1 rounded-full mb-2 inline-block">本日限定！</div>' : ''}
+                    <div class="text-4xl mb-2 ${item.id === 999 ? 'zeus-lightning' : ''}">${item.emoji}</div>
+                    <h5 class="font-semibold text-gray-800">${item.name}</h5>
+                    <p class="text-sm text-gray-600">${item.description}</p>
+                    <div class="text-xl font-bold ${isSpecial ? 'text-red-600' : 'text-blue-600'} mt-2">¥${item.price.toLocaleString()}</div>
+                </div>
+            `;
+            
+            document.getElementById('purchaseModal').classList.remove('hidden');
+        }
+
+        // 購入モーダルを閉じる
+        function closePurchaseModal() {
+            purchaseItem = null;
+            document.getElementById('purchaseModal').classList.add('hidden');
+        }
+
+        // 購入を確定
+        async function confirmPurchase() {
+            if (!purchaseItem) return;
+            
+            const bookBonus = books.reduce((total, book) => total + (book.price || 100), 0);
+            const milestoneBonus = Math.floor(books.length / 5) * 1000;
+            const spentMoney = parseFloat(localStorage.getItem('spentMoney') || '0');
+            const currentSavings = bookBonus + milestoneBonus - spentMoney;
+            
+            if (currentSavings < purchaseItem.price) {
+                showError('貯金が足りません');
+                return;
+            }
+            
+            const purchase = {
+                ...purchaseItem,
+                date: new Date().toISOString(),
+                purchaseId: Date.now()
+            };
+            
+            purchases.push(purchase);
+            
+            let currentSpentMoney = parseFloat(localStorage.getItem('spentMoney') || '0');
+            currentSpentMoney += purchaseItem.price;
+            localStorage.setItem('spentMoney', currentSpentMoney.toString());
+            localStorage.setItem('purchases', JSON.stringify(purchases));
+            
+            updateDisplay();
+            closePurchaseModal();
+            
+            // クラウドに即座に保存して結果を表示
+            showSuccess(`${purchaseItem.name}を購入しました！保存中...`);
+            
+            const saveResult = await saveToGAS();
+            
+            if (saveResult.ok) {
+                showSuccess(`${purchaseItem.name}を購入し、クラウドに保存しました！`);
+            } else {
+                showError(`購入しましたが、クラウド保存に失敗: ${saveResult.error || '不明なエラー'}`);
+            }
+        }
+
+        // モーダルの外側クリックで閉じる
+        document.getElementById('deleteModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDeleteModal();
+            }
+        });
+
+        document.getElementById('purchaseModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closePurchaseModal();
+            }
+        });
+        
+        document.getElementById('restoreModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeRestoreModal();
+            }
+        });
+        
+        document.getElementById('confirmNameModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeConfirmNameModal();
+            }
+        });
+    </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9ee8da0e039c8355',t:'MTc3NjU2OTY0OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
